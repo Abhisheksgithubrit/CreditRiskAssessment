@@ -1,0 +1,5 @@
+Age,Income,CreditScore,LoanAmount,Gender,Married,Education,Self_Employed,Risk
+25,50000,720,20000,Male,Yes,Graduate,No,0
+45,120000,690,40000,Female,Yes,Not Graduate,No,1
+35,75000,710,25000,Male,No,Graduate,Yes,0
+30,60000,680,22000,Female,Yes,Graduate,No,1
