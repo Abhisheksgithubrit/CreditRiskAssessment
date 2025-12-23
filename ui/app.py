@@ -64,6 +64,7 @@ def run_app():
     self_employed = st.selectbox("Self Employed", ["Yes", "No"])
 
     if st.button("Predict Risk"):
+        # Input dataframe (EXACT column names as training)
         input_df = pd.DataFrame([{
             "Age": age,
             "Income": income,
@@ -75,10 +76,11 @@ def run_app():
             "Self_Employed": self_employed
         }])
 
-        # 🔑 MATCH TRAINING PIPELINE
-        categorical_cols = input_df.select_dtypes(include=["object"]).columns
-        numerical_cols = input_df.select_dtypes(exclude=["object"]).columns
+        # 🔐 CRITICAL: use EXACT categorical columns from training
+        categorical_cols = list(encoder.feature_names_in_)
+        numerical_cols = [c for c in input_df.columns if c not in categorical_cols]
 
+        # Encode categorical features
         input_cat_encoded = encoder.transform(input_df[categorical_cols])
 
         input_cat_df = pd.DataFrame(
@@ -86,9 +88,12 @@ def run_app():
             columns=encoder.get_feature_names_out(categorical_cols)
         )
 
+        # Combine encoded categorical + numerical
         input_final = pd.concat(
-            [input_cat_df.reset_index(drop=True),
-             input_df[numerical_cols].reset_index(drop=True)],
+            [
+                input_cat_df.reset_index(drop=True),
+                input_df[numerical_cols].reset_index(drop=True)
+            ],
             axis=1
         )
 
