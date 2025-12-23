@@ -8,8 +8,8 @@ from sklearn.metrics import accuracy_score, classification_report
 
 def train_model(X, y):
     # Separate categorical & numerical columns
-    categorical_cols = X.select_dtypes(include=["object"]).columns
-    numerical_cols = X.select_dtypes(exclude=["object"]).columns
+    categorical_cols = X.select_dtypes(include=["object"]).columns.tolist()
+    numerical_cols = X.select_dtypes(exclude=["object"]).columns.tolist()
 
     # Encode categorical features
     encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
@@ -23,7 +23,8 @@ def train_model(X, y):
 
     # Combine numeric + categorical
     X_final = pd.concat(
-        [X_cat_df.reset_index(drop=True), X[numerical_cols].reset_index(drop=True)],
+        [X_cat_df.reset_index(drop=True),
+         X[numerical_cols].reset_index(drop=True)],
         axis=1
     )
 
@@ -45,8 +46,10 @@ def train_model(X, y):
     accuracy = accuracy_score(y_test, y_pred)
     report = classification_report(y_test, y_pred, output_dict=True)
 
-    # Save model & encoder
+    # 🔐 SAVE EVERYTHING NEEDED FOR PREDICTION
     joblib.dump(model, "model.pkl")
     joblib.dump(encoder, "encoder.pkl")
+    joblib.dump(categorical_cols, "categorical_cols.pkl")
+    joblib.dump(numerical_cols, "numerical_cols.pkl")
 
     return accuracy, report, model, encoder
