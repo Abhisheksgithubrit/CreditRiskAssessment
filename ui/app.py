@@ -6,9 +6,11 @@ from src.model import train_model
 
 model = None
 encoder = None
+categorical_cols = None
+numerical_cols = None
 
 def run_app():
-    global model, encoder
+    global model, encoder, categorical_cols, numerical_cols
 
     st.title("💳 Credit Risk Assessment App")
 
@@ -21,7 +23,7 @@ def run_app():
         st.write("### Raw Data", data)
 
         if "Risk" not in data.columns:
-            st.error("❌ Dataset must contain a 'Risk' column for training.")
+            st.error("❌ Dataset must contain a 'Risk' column.")
             return
 
         X = data.drop("Risk", axis=1)
@@ -30,22 +32,28 @@ def run_app():
         if st.button("Train Model"):
             accuracy, report, trained_model, trained_encoder = train_model(X, y)
 
-            joblib.dump(trained_model, "model.pkl")
-            joblib.dump(trained_encoder, "encoder.pkl")
-
             model = trained_model
             encoder = trained_encoder
 
-            st.success(f"✅ Model trained successfully with {accuracy * 100:.2f}% accuracy.")
+            # 🔐 load saved columns AFTER training
+            categorical_cols = joblib.load("categorical_cols.pkl")
+            numerical_cols = joblib.load("numerical_cols.pkl")
+
+            st.success(f"✅ Model trained with {accuracy * 100:.2f}% accuracy.")
             st.json(report)
 
     # ------------------ LOAD MODEL ------------------
-    if model is None or encoder is None:
-        if os.path.exists("model.pkl") and os.path.exists("encoder.pkl"):
+    if model is None:
+        if all(os.path.exists(f) for f in [
+            "model.pkl", "encoder.pkl",
+            "categorical_cols.pkl", "numerical_cols.pkl"
+        ]):
             model = joblib.load("model.pkl")
             encoder = joblib.load("encoder.pkl")
+            categorical_cols = joblib.load("categorical_cols.pkl")
+            numerical_cols = joblib.load("numerical_cols.pkl")
         else:
-            st.warning("⚠️ No trained model found. Please upload data and train first.")
+            st.warning("⚠️ Train the model first.")
             return
 
     st.markdown("---")
@@ -64,7 +72,6 @@ def run_app():
     self_employed = st.selectbox("Self Employed", ["Yes", "No"])
 
     if st.button("Predict Risk"):
-        # Input dataframe (EXACT column names as training)
         input_df = pd.DataFrame([{
             "Age": age,
             "Income": income,
@@ -76,11 +83,7 @@ def run_app():
             "Self_Employed": self_employed
         }])
 
-        # 🔐 CRITICAL: use EXACT categorical columns from training
-        categorical_cols = list(encoder.feature_names_in_)
-        numerical_cols = [c for c in input_df.columns if c not in categorical_cols]
-
-        # Encode categorical features
+        # ✅ USE SAVED TRAINING COLUMNS (THIS IS THE FIX)
         input_cat_encoded = encoder.transform(input_df[categorical_cols])
 
         input_cat_df = pd.DataFrame(
@@ -88,7 +91,6 @@ def run_app():
             columns=encoder.get_feature_names_out(categorical_cols)
         )
 
-        # Combine encoded categorical + numerical
         input_final = pd.concat(
             [
                 input_cat_df.reset_index(drop=True),
