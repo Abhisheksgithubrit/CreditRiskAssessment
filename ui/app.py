@@ -12,7 +12,7 @@ def run_app():
 
     st.title("💳 Credit Risk Assessment App")
 
-    # Upload CSV
+    # ------------------ TRAINING ------------------
     st.subheader("📁 Upload Dataset")
     uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
 
@@ -20,14 +20,16 @@ def run_app():
         data = pd.read_csv(uploaded_file)
         st.write("### Raw Data", data)
 
-        # Separate features and label
+        if "Risk" not in data.columns:
+            st.error("❌ Dataset must contain a 'Risk' column for training.")
+            return
+
         X = data.drop("Risk", axis=1)
         y = data["Risk"]
 
         if st.button("Train Model"):
             accuracy, report, trained_model, trained_encoder = train_model(X, y)
 
-            # Save the trained model and encoder
             joblib.dump(trained_model, "model.pkl")
             joblib.dump(trained_encoder, "encoder.pkl")
 
@@ -37,7 +39,7 @@ def run_app():
             st.success(f"✅ Model trained successfully with {accuracy * 100:.2f}% accuracy.")
             st.json(report)
 
-    # Load model/encoder if already saved
+    # ------------------ LOAD MODEL ------------------
     if model is None or encoder is None:
         if os.path.exists("model.pkl") and os.path.exists("encoder.pkl"):
             model = joblib.load("model.pkl")
@@ -48,23 +50,51 @@ def run_app():
 
     st.markdown("---")
 
-    # Live Prediction
+    # ------------------ PREDICTION ------------------
     st.subheader("🧠 Make a Credit Risk Prediction")
 
-    age = st.number_input("Age", 18, 100)
-    income = st.number_input("Income", 0)
-    credit_score = st.number_input("Credit Score", 300, 900)
-    loan_amount = st.number_input("Loan Amount", 0)
+    age = st.number_input("Age", 18, 100, 30)
+    income = st.number_input("Income", 0, value=30000)
+    credit_score = st.number_input("Credit Score", 300, 900, 650)
+    loan_amount = st.number_input("Loan Amount", 0, value=200000)
+
     gender = st.selectbox("Gender", ["Male", "Female"])
     married = st.selectbox("Married", ["Yes", "No"])
     education = st.selectbox("Education", ["Graduate", "Not Graduate"])
     self_employed = st.selectbox("Self Employed", ["Yes", "No"])
 
     if st.button("Predict Risk"):
-        input_df = pd.DataFrame([[age, income, credit_score, loan_amount, gender, married, education, self_employed]],
-                                columns=["Age", "Income", "CreditScore", "LoanAmount", "Gender", "Married", "Education", "Self_Employed"])
+        input_df = pd.DataFrame([{
+            "Age": age,
+            "Income": income,
+            "CreditScore": credit_score,
+            "LoanAmount": loan_amount,
+            "Gender": gender,
+            "Married": married,
+            "Education": education,
+            "Self_Employed": self_employed
+        }])
 
-        input_encoded = encoder.transform(input_df)
-        prediction = model.predict(input_encoded)
+        # 🔑 MATCH TRAINING PIPELINE
+        categorical_cols = input_df.select_dtypes(include=["object"]).columns
+        numerical_cols = input_df.select_dtypes(exclude=["object"]).columns
 
-        st.success(f"🎯 Predicted Risk: {'High' if prediction[0] == 1 else 'Low'}")
+        input_cat_encoded = encoder.transform(input_df[categorical_cols])
+
+        input_cat_df = pd.DataFrame(
+            input_cat_encoded,
+            columns=encoder.get_feature_names_out(categorical_cols)
+        )
+
+        input_final = pd.concat(
+            [input_cat_df.reset_index(drop=True),
+             input_df[numerical_cols].reset_index(drop=True)],
+            axis=1
+        )
+
+        prediction = model.predict(input_final)[0]
+
+        if prediction == 1:
+            st.error("🔴 High Credit Risk")
+        else:
+            st.success("🟢 Low Credit Risk")
